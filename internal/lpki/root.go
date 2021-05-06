@@ -69,7 +69,7 @@ func loadCA(dir string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
 }
 
 func initRootCA(dir string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("failed to generate key: %w", err)
 	}
@@ -77,6 +77,7 @@ func initRootCA(dir string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
 	cert := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
+			CommonName:         "nakanokurenai/uec-autologon",
 			OrganizationalUnit: []string{ou},
 			Organization:       []string{org},
 			Country:            []string{ctry},
