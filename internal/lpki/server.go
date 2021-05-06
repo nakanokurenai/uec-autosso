@@ -50,13 +50,13 @@ func (c *CA) IssueServerCert(dnsName string) (*ecdsa.PrivateKey, *x509.Certifica
 
 	dnsNames := []string{dnsName}
 
-	key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("failed to generate key: %w", err)
 	}
 
 	certTpl := x509.Certificate{
-		SerialNumber: incrementSerial(),
+		SerialNumber: getSerial(),
 		Subject: pkix.Name{
 			CommonName:         dnsNames[0],
 			OrganizationalUnit: []string{ou},
@@ -70,7 +70,7 @@ func (c *CA) IssueServerCert(dnsName string) (*ecdsa.PrivateKey, *x509.Certifica
 		DNSNames:    dnsNames,
 	}
 
-	certBytes, err := x509.CreateCertificate(rand.Reader, &certTpl, c.cert, &key.PublicKey, c.key)
+	certBytes, err := x509.CreateCertificate(rand.Reader, &certTpl, c.Cert, &key.PublicKey, c.key)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("failed to create cert: %w", err)
 	}

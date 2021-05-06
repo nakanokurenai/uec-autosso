@@ -28,7 +28,7 @@ const (
 
 type CA struct {
 	key  *ecdsa.PrivateKey
-	cert *x509.Certificate
+	Cert *x509.Certificate
 }
 
 // 証明書が存在しなければ os.ErrNotExist を返します
@@ -130,7 +130,7 @@ func initRootCA(dir string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
 func LoadOrInitializeCA(dir string) (CA, error) {
 	k, c, err := loadCA(dir)
 	if err == nil {
-		return CA{key: k, cert: c}, nil
+		return CA{key: k, Cert: c}, nil
 	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return CA{}, xerrors.Errorf("failed to load ca: %w", err)
@@ -140,5 +140,5 @@ func LoadOrInitializeCA(dir string) (CA, error) {
 	if err != nil {
 		return CA{}, xerrors.Errorf("failed to init ca: %w", err)
 	}
-	return CA{key: k, cert: c}, nil
+	return CA{key: k, Cert: c}, nil
 }

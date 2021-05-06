@@ -2,17 +2,11 @@ package lpki
 
 import (
 	"math/big"
-	"sync"
+	"time"
 )
 
-// 1 ~ 1000 は CA のために予約しておく
-var sn = big.NewInt(1000)
-var snM sync.Mutex
-
-func incrementSerial() *big.Int {
-	snM.Lock()
-	defer snM.Unlock()
-	sn.Add(sn, big.NewInt(1))
-	rv := big.NewInt(0)
-	return rv.Add(rv, sn)
+func getSerial() *big.Int {
+	// 同じ番号を過去に見たことがあると被りが検知されてブラウザに警告されるため、Nanosecond にしてある
+	// ランダムでさらに保険をかけることもできるが、まあいったんはこれで
+	return big.NewInt(int64(time.Now().Nanosecond()))
 }
