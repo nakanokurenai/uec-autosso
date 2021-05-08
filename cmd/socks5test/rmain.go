@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -11,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nakanokurenai/uec-autologon/internal/lpki"
+	"github.com/nakanokurenai/uec-autologon/internal/recon"
 	"github.com/thinkgos/go-socks5"
 	"golang.org/x/xerrors"
 )
@@ -21,49 +20,14 @@ var mustMuskAddress = net.ParseIP("192.0.2.1")
 
 const targetHostname = "thissitedoesnotexist.example.com"
 
-func selfSignedTLSServer(ctx context.Context, dnsName string, l net.Listener) (net.Listener, error) {
-	ca, err := lpki.LoadOrInitializeCA(".")
-	if err != nil {
-		return nil, xerrors.Errorf("w: %w", err)
-	}
-	k, c, err := ca.IssueServerCert(dnsName)
-	if err != nil {
-		return nil, xerrors.Errorf("w: %w", err)
-	}
-	tl := tls.NewListener(l, &tls.Config{
-		Certificates: []tls.Certificate{
-			{
-				Certificate: [][]byte{
-					c.Raw,
-					// CA 証明書を含むチェーンにしないといけないっぽい
-					ca.Cert.Raw,
-				},
-				PrivateKey: k,
-			},
-		},
-	})
-	return tl, nil
-}
-
 func listenHTTPServer(ctx context.Context) (func(), func() (net.Conn, error), error) {
-	addr := "127.0.0.1:1081"
-
-	// github.com/akutz/memconn を使いたかったがうまく動かなかったので TCP でやっている
-	// github.com/armon/go-socks5 ではどこかで TCPAddr を要求するコードがあって破滅
-	// github.com/thinkgos/go-socks5 (Fork) だと動きそうだが curl で "Can't complete SOCKS5 connection to 0.0.0.0:0." のようなエラーが起きる
-	// 接続先情報とかめちゃめちゃになっちゃうからかなあ…
-	l, err := net.Listen("tcp", addr)
+	hl, err := recon.New(targetHostname, fmt.Sprintf("yo.%s", targetHostname))
 	if err != nil {
-		return nil, nil, xerrors.Errorf("w: %w", err)
+		return nil, nil, xerrors.Errorf("recon failed: %w", err)
 	}
-	lis, err := selfSignedTLSServer(ctx, targetHostname, l)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("w: %w", err)
-	}
-
 	go func() {
 		<-ctx.Done()
-		lis.Close()
+		hl.Close()
 	}()
 
 	var h http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
@@ -80,14 +44,14 @@ func listenHTTPServer(ctx context.Context) (func(), func() (net.Conn, error), er
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		if err := s.Serve(lis); err != nil {
+		if err := s.Serve(hl); err != nil {
 			fmt.Println(err)
 		}
 		wg.Done()
 	}()
 
 	return func() { wg.Wait() }, func() (net.Conn, error) {
-		return net.Dial("tcp", "127.0.0.1:1081")
+		return hl.Dial()
 	}, nil
 }
 
