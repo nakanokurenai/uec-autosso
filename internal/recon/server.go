@@ -1,4 +1,4 @@
-/// recon は偽 TLS 証明書をオンデマンドに追加できる TLS をしゃべることができる Listener / Conn 出せるやつ
+/// recon は偽TLS証明書をオンデマンドで発行し TLS をしゃべる Listener / Conn 出せるやつ
 package recon
 
 import (
@@ -12,8 +12,7 @@ import (
 const addr = "127.0.0.1:1081"
 
 type TLSListener struct {
-	ca           lpki.CA
-	certificates []tls.Certificate
+	ca lpki.CA
 
 	// inner は TLS じゃないとダメ
 	inner net.Listener
@@ -40,23 +39,7 @@ func (l *TLSListener) Dial() (net.Conn, error) {
 	return net.Dial("tcp", addr)
 }
 
-func (l *TLSListener) addCertificate(dnsName string) error {
-	k, c, err := l.ca.IssueServerCert(dnsName)
-	if err != nil {
-		return xerrors.Errorf("failed to issue certificate for %s: %w", dnsName, err)
-	}
-	l.certificates = append(l.certificates, tls.Certificate{
-		Certificate: [][]byte{
-			c.Raw,
-			// CA 証明書を含むチェーンにしないといけないっぽい
-			l.ca.Cert.Raw,
-		},
-		PrivateKey: k,
-	})
-	return nil
-}
-
-func New(dnsNames ...string) (*TLSListener, error) {
+func New() (*TLSListener, error) {
 	// github.com/akutz/memconn を使いたかったがうまく動かなかったので TCP でやっている
 	// github.com/armon/go-socks5 ではどこかで TCPAddr を要求するコードがあって破滅
 	// github.com/thinkgos/go-socks5 (Fork) だと動きそうだが curl で "Can't complete SOCKS5 connection to 0.0.0.0:0." のようなエラーが起きる
@@ -75,16 +58,25 @@ func New(dnsNames ...string) (*TLSListener, error) {
 	tl := TLSListener{
 		ca: ca,
 	}
-	for _, n := range dnsNames {
-		if err := tl.addCertificate(n); err != nil {
-			return nil, err
-		}
-	}
-	// tls.NewListener に immutable な array 渡す
-	certs := make([]tls.Certificate, len(tl.certificates))
-	copy(certs, tl.certificates)
 	tl.inner = tls.NewListener(l, &tls.Config{
-		Certificates: certs,
+		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			dnsName := hello.ServerName
+			if dnsName == "" {
+				return nil, xerrors.Errorf("sni only supported")
+			}
+			k, c, err := ca.IssueServerCert(dnsName)
+			if err != nil {
+				return nil, xerrors.Errorf("failed to issue certificate for %s: %w", dnsName, err)
+			}
+			return &tls.Certificate{
+				Certificate: [][]byte{
+					c.Raw,
+					// CA 証明書を含むチェーンにしないといけないっぽい
+					ca.Cert.Raw,
+				},
+				PrivateKey: k,
+			}, nil
+		},
 	})
 
 	return &tl, nil

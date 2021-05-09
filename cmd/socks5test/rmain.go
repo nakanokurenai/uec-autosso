@@ -21,7 +21,7 @@ var mustMuskAddress = net.ParseIP("192.0.2.1")
 const targetHostname = "thissitedoesnotexist.example.com"
 
 func listenHTTPServer(ctx context.Context) (func(), func() (net.Conn, error), error) {
-	hl, err := recon.New(targetHostname, fmt.Sprintf("yo.%s", targetHostname))
+	hl, err := recon.New()
 	if err != nil {
 		return nil, nil, xerrors.Errorf("recon failed: %w", err)
 	}
